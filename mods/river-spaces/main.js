@@ -5,7 +5,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, agents, setAgentOrder, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, agents, setAgentOrder, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, pickFolder, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -96,8 +96,18 @@ function toggleSidebar() {
   run("layout.resize", { id: "sidebar", px: narrow() ? (shared("sidebar.width") ?? 268) : window()?.platform === "macos" ? 76 : 44 });
 }
 
+// A new space on this computer starts in a picked folder and is named after it. The folder a
+// space was made in stays its own: the Changes list, the Project panel and Find in Files use it.
+async function newSpace() {
+  const folder = await pickFolder({ prompt: "Create space" });
+  if (folder) run("space.new", { folder, name: base(folder), machine: "" });
+}
+
 export default class Spaces extends View {
   init(_props, cx) {
+    cx.spawn(async () => {
+      for (;;) if ((await nextCommand()) === "new-space") await newSpace();
+    });
     this.git = {}; // where() -> { name, branch, ahead, behind, repo, linked }, null: not a repo
     this.checked = {}; // where() -> when it was last looked at
     this.unsure = new Set(); // where()s git couldn't answer for (a machine away)
@@ -449,12 +459,12 @@ export default class Spaces extends View {
               .on_click((_e, cx) => { cx.stop_propagation(); this.reconnect(machine, cx); })
               .child(repair?.busy ? "Connecting…" : "Connect"))))
           .when(connected, el => el.child(div().id(`machine-add-${m ?? "local"}`).flex_none().px(4).rounded(4).hover(s => s.bg(t.hover).text_color(t.foreground))
-            .on_click((_e, cx) => { cx.stop_propagation(); run("space.new", { machine: m ?? "" }); }).child("+")))
+            .on_click((_e, cx) => { cx.stop_propagation(); if (m) run("space.new", { machine: m }); else cx.spawn(newSpace); }).child("+")))
           .child(div().size(6).rounded(3).flex_none().bg(connected ? t.ansi2 : t.dim))
           .child(svg(`mods/river-spaces/icons/chevron-${folded ? "right" : "down"}.svg`).size(11).flex_none()));
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(7)
         .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
-        .on_click(() => run("space.new", { machine: m ?? "" }))
+        .on_click((_e, cx) => { if (m) run("space.new", { machine: m }); else cx.spawn(newSpace); })
         .when(collapsed, el => el.w(RAIL_CELL).rounded(6).justify_center().tooltip(`New space on ${m ?? "this computer"}`)
           .child(h_flex().size(18).rounded(5).border_1().border_color(t.dim).items_center().justify_center()
             .child(svg("mods/river-spaces/icons/plus.svg").size(10))))
@@ -580,7 +590,7 @@ export default class Spaces extends View {
         .when(collapsed, el => el.pl(0).pr(0).justify_center())
         .when(!collapsed, el => el.child("Spaces"))
         .child(div().id("space-new").size(26).flex_none().flex().items_center().justify_center().rounded(6).hover(s => s.bg(t.hover).text_color(t.foreground))
-          .on_click(() => run("space.new")).child(svg("mods/river-spaces/icons/plus.svg").size(14))))
+          .on_click((_e, cx) => cx.spawn(newSpace)).child(svg("mods/river-spaces/icons/plus.svg").size(14))))
       .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pb(14).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
         .children(this.grouped(t, collapsed)))

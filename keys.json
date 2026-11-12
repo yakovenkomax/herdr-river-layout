@@ -1,5 +1,6 @@
 {
 	"global": {
+		"cmd-n": "river-spaces.new-space",
 		"cmd-shift-n": "mod.open:river-create-task",
 		"cmd-shift-f": "mod.open:river-find"
 	}

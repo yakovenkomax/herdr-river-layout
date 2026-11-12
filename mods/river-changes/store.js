@@ -1,6 +1,6 @@
 // What the list and the diff share, and the three shared keys other mods may use (README.md).
 
-import { exec, focused, panes, run, setShared, shared, spaces } from "herdr";
+import { exec, focused, home, panes, run, setShared, shared, spaces } from "herdr";
 
 export const MOD = "river-changes";
 // The name of the mod that shows files, set by that mod. Another mod opens a file with
@@ -56,8 +56,11 @@ export function activeSpace() {
   return spaces().find((space) => space.id === focus?.space) ?? spaces().find((space) => space.active) ?? null;
 }
 
-// Where a space is now: its first terminal's live folder, else where it was made.
+// A space's folder: the one it was made in. A space made at home has none of its own, so it is
+// where its first terminal is now.
 export function checkoutOf(space, allPanes = panes()) {
+  if (space?.folder && space.folder !== home()) return space.folder;
+
   const tabs = new Set((space?.tabs ?? []).map((tab) => tab.id));
 
   return allPanes.find((pane) => tabs.has(pane.tab) && pane.terminal && pane.cwd)?.cwd || space?.folder || null;

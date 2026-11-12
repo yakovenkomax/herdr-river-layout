@@ -19,11 +19,12 @@ const focusedFolder = () => {
   const tabTerminals = panes().filter((p) => p.tab === focus?.tab && p.terminal && p.cwd);
   const terminal = tabTerminals.find((p) => p.focused) ?? tabTerminals[0];
   const space = spaces().find((s) => s.id === focus?.space) ?? spaces().find((s) => s.active);
-  // Local change: from a tab without a terminal (an editor tab, the review), search the space's
-  // checkout, where its first terminal is, not the folder the space was made in.
+  // Local change: the folder a space was made in is searched. A space made at home follows its
+  // terminals: the focused one, else its first.
   const spaceTabs = new Set((space?.tabs ?? []).map((tab) => tab.id));
   const spaceTerminal = panes().find((p) => spaceTabs.has(p.tab) && p.terminal && p.cwd);
-  const cwd = focus?.cwd || terminal?.cwd || spaceTerminal?.cwd || space?.folder || home();
+  const ownFolder = space?.folder && space.folder !== home() ? space.folder : null;
+  const cwd = ownFolder || focus?.cwd || terminal?.cwd || spaceTerminal?.cwd || space?.folder || home();
   return { cwd, machine: machineOf(focus, space) };
 };
 

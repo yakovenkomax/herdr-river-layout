@@ -1,7 +1,7 @@
 // Lazy tree and read-only preview adapted from Herdr files.
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, ScrollHandle } from "gpui-base";
-import { spaces, panes, focused, exec, readTextFile, watchFolder, window as appWindow, props, shared, setShared, run, openOverlay, layout, notify } from "herdr";
+import { spaces, panes, focused, home, exec, readTextFile, watchFolder, window as appWindow, props, shared, setShared, run, openOverlay, layout, notify } from "herdr";
 import { workspaceOf, describeRoots, reloadWorkspace, dirname, basename, joinPath, label, shortPath, rootOf, relativePath, contains, READ } from "./roots.js";
 import { captureTarget, installed, REVISION, menuLayout, menuItems } from "./actions.js";
 import { appearance, sourceStyle } from "./appearance.js";
@@ -40,9 +40,10 @@ export function location(previous) {
   const space = spaces().find(s => s.active), f = focused();
   const pane = f?.pane ? panes().find(p => p.pane === f.pane) : null;
   const preview = ["river-files", "preview-plus"].includes(pane?.mod);
-  // Local change: a mod pane in front (a file tab) has no folder, so take the space's first terminal's before the folder the space was made in.
+  // Local change: the folder a space was made in is its root. A space made at home follows its panes, and with a mod pane in front (a file tab has no folder) its first terminal.
+  const ownFolder = space?.folder && space.folder !== home() ? space.folder : null;
   const terminalCwd = panes().find(p => p.cwd && space?.tabs.some(tab => tab.id === p.tab))?.cwd;
-  const cwd = (f?.space === space?.id ? pane?.cwd || f?.cwd || (preview && previous?.space === space.id ? previous.cwd : null) : null) || terminalCwd || space?.folder;
+  const cwd = ownFolder || (f?.space === space?.id ? pane?.cwd || f?.cwd || (preview && previous?.space === space.id ? previous.cwd : null) : null) || terminalCwd || space?.folder;
   const on = f && space && f.space === space.id && f.pane === null && f.terminal ? (f.terminal.includes("/") ? f.terminal.split("/")[0] : null) : space?.machine ?? null;
   const entry = workspaceOf(space?.id);
   return { space: space?.id, cwd, on, entry, key: entry ? JSON.stringify([space.id, entry.folders]) : JSON.stringify([space?.id, cwd, on]) };
