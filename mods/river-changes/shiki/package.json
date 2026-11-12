@@ -1,0 +1,9 @@
+{
+  "name": "river-changes-shiki",
+  "private": true,
+  "type": "module",
+  "description": "Grammar-based highlighting for the river-changes diff view",
+  "dependencies": {
+    "shiki": "^4.6.0"
+  }
+}

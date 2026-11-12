@@ -1,0 +1,302 @@
+// Find in Files: search the focused terminal's repo, preview a hit, open it in $EDITOR.
+
+import { InputState, v_flex, VirtualListScrollHandle } from "gpui-base";
+import { View } from "gpui-kit";
+import { closeOverlay, exec, props, run, setShared, shared, theme } from "herdr";
+
+import { FileState, readFile } from "./file.js";
+import { findRoot } from "./folder.js";
+import { header } from "./header.js";
+import { keyHints } from "./hints.js";
+import { hitList } from "./hit-list.js";
+import { isFiltersKey, optionFlags, optionOfKey, readOptions } from "./options.js";
+import { pathFlags } from "./paths.js";
+import { preview } from "./preview.js";
+import { displayPath, errorText, parseHits, SEARCH_SCRIPT } from "./rg.js";
+import { settle } from "./settle.js";
+
+const QUERY_KEY = "river-find.query";
+const OPTIONS_KEY = "river-find.options";
+const DEBOUNCE_MS = 150;
+const INCLUDE_PLACEHOLDER = "Files to include: src, *.js";
+const EXCLUDE_PLACEHOLDER = "Files to exclude: test, *.min.js";
+const STEPS = Object.freeze({ down: 1, up: -1 });
+// Unquoted, so an $EDITOR like "code --wait" splits into words. The path keeps rg's "./", so
+// a file named "-x" or "+x" is not an option.
+const EDIT_SCRIPT = 'exec ${EDITOR:-nvim} "+$1" "$2"';
+
+export default class FindInFiles extends View {
+  init(_props, cx) {
+    this.overlay = props()?.overlay;
+    this.query = shared(QUERY_KEY) ?? "";
+    this.options = readOptions(shared(OPTIONS_KEY));
+    this.input = InputState.new({ placeholder: "Find in files…", value: this.query });
+    this.scroll = VirtualListScrollHandle.new();
+
+    const { include, exclude } = this.options;
+    this.include = InputState.new({ placeholder: INCLUDE_PLACEHOLDER, value: include });
+    this.exclude = InputState.new({ placeholder: EXCLUDE_PLACEHOLDER, value: exclude });
+
+    // The path fields show at the start while they have text.
+    this.filtersOpen = this.hasPathText();
+
+    // The input that a click on a toggle gives the keyboard back to.
+    this.focused = this.input;
+
+    // Set by a toggle or a field, so the next save keeps the options.
+    this.optionsChanged = false;
+
+    this.root = null;
+    this.machine = null;
+    this.seq = 0;
+    this.reset();
+    // Searching until the repo root is known, too.
+    this.searching = true;
+
+    if (!this.overlay) return; // `herdr-app check` loads the mod without an overlay
+
+    this.input.on("change", (_e, cx) => this.changed(cx));
+    this.include.on("change", (_e, cx) => this.pathsChanged(cx));
+    this.exclude.on("change", (_e, cx) => this.pathsChanged(cx));
+    [this.input, this.include, this.exclude].forEach((input) => {
+      input.on("submit", () => this.open(this.hits[this.selected]));
+      input.on("focus", () => (this.focused = input));
+    });
+
+    // The last query is selected, so typing replaces it.
+    this.input.focus();
+    this.input.set_selected_range({ start: 0, end: this.query.length });
+
+    cx.spawn(async (cx) => this.start(await findRoot(), cx));
+  }
+
+  // No hits, and no files read for the preview.
+  reset() {
+    this.hits = [];
+    this.hasMore = false;
+    this.selected = 0;
+    this.error = null;
+    this.searching = false;
+    this.files = new Map();
+  }
+
+  start({ root, machine }, cx) {
+    this.root = root;
+    this.machine = machine;
+    this.search(this.seq, cx);
+  }
+
+  close() {
+    this.save();
+    closeOverlay(this.overlay);
+  }
+
+  // Each search saves too: Herdr gives a mod no close hook, and the close key never reaches it.
+  save() {
+    setShared(QUERY_KEY, this.query);
+    // Each setShared draws every mod again, so the options are saved only when they change.
+    if (!this.optionsChanged) return;
+
+    setShared(OPTIONS_KEY, this.options);
+    this.optionsChanged = false;
+  }
+
+  changed(cx) {
+    this.query = this.input.value();
+    this.searchSoon(cx);
+  }
+
+  pathsChanged(cx) {
+    this.setOptions({
+      ...this.options,
+      include: this.include.value(),
+      exclude: this.exclude.value(),
+    });
+    this.searchSoon(cx);
+  }
+
+  searchSoon(cx) {
+    const seq = ++this.seq;
+    cx.timer.after(DEBOUNCE_MS, (cx) => {
+      if (seq === this.seq) this.search(seq, cx);
+    });
+  }
+
+  // A toggle searches at once: there is no typing to wait for.
+  toggle(option, cx) {
+    this.setOptions({ ...this.options, [option.id]: !this.options[option.id] });
+    // A click on a toggle must not take the keyboard from the input.
+    this.focused.focus();
+    this.search(++this.seq, cx);
+  }
+
+  setOptions(options) {
+    this.options = options;
+    this.optionsChanged = true;
+  }
+
+  hasPathText() {
+    return Boolean(this.options.include || this.options.exclude);
+  }
+
+  // The fields hide only while both are empty: a hidden filter would still filter the hits.
+  toggleFilters(cx) {
+    if (this.filtersOpen && this.hasPathText()) return this.include.focus();
+
+    this.filtersOpen = !this.filtersOpen;
+    cx.notify();
+
+    if (!this.filtersOpen) {
+      this.focused = this.input;
+      return this.input.focus();
+    }
+
+    // The field draws in the next frame, and it takes the focus only after that.
+    cx.timer.after(1, (cx) => {
+      if (this.filtersOpen) this.include.focus();
+      cx.notify();
+    });
+  }
+
+  // exec cannot be cancelled, so a newer query (a higher seq) drops the result of an older one.
+  search(seq, cx) {
+    // Before the root is known, the root lookup searches for the latest query.
+    if (this.root === null) return;
+
+    this.save();
+
+    if (!this.query) {
+      this.reset();
+      cx.notify();
+      return;
+    }
+
+    this.searching = true;
+    cx.notify();
+    cx.spawn(async (cx) => this.showHits(seq, await this.runSearch(), cx));
+  }
+
+  runSearch() {
+    // The script's --smart-case comes first, so --case-sensitive overrides it.
+    const flags = [...optionFlags(this.options), ...pathFlags(this.options)];
+    const args = ["-c", SEARCH_SCRIPT, "sh", ...flags, "--", this.query, "."];
+    return settle(exec("sh", args, { cwd: this.root, on: this.machine }));
+  }
+
+  showHits(seq, result, cx) {
+    if (seq !== this.seq) return;
+
+    this.reset();
+
+    if (result instanceof Error) {
+      this.error = result.message;
+      cx.notify();
+      return;
+    }
+
+    // rg reports an unreadable file on stderr and still lists the hits in the rest.
+    this.error = errorText(result.stderr);
+    ({ hits: this.hits, hasMore: this.hasMore } = parseHits(result.stdout));
+    this.select(0, cx);
+  }
+
+  // A click selects without a scroll, so the row stays under the pointer.
+  select(i, cx, { scroll = true } = {}) {
+    this.selected = Math.max(0, Math.min(i, this.hits.length - 1));
+    if (scroll && this.hits.length) this.scroll.scroll_to_item(this.selected, "center");
+    this.read(this.hits[this.selected], cx);
+    cx.notify();
+  }
+
+  // Reads the selected hit's file for the preview, once per search.
+  read(hit, cx) {
+    if (!hit || this.files.has(hit.path)) return;
+
+    const files = this.files;
+    const path = `${this.root}/${displayPath(hit.path)}`;
+    files.set(hit.path, { state: FileState.Reading });
+
+    cx.spawn(async (cx) => {
+      files.set(hit.path, await readFile(path, this.machine));
+      cx.notify();
+    });
+  }
+
+  open(hit) {
+    if (!hit) return;
+
+    this.close();
+    // Local change: a hit opens in the mod named by the shared "river.viewer", else in $EDITOR.
+    const file = `${this.root}/${displayPath(hit.path)}`;
+    const name = file.split("/").pop();
+    const viewer = shared("river.viewer");
+
+    if (viewer) run("tab.new", { name, mod: viewer, props: { role: "file", file, root: this.root, on: this.machine } });
+    else run("tab.new", { name, argv: ["sh", "-c", 'exec "${EDITOR:-vi}" "$1"', "river-find", file] });
+  }
+
+  key(e, cx) {
+    if (e.key === "escape") return this.close();
+
+    const option = optionOfKey(e);
+    const isFilters = isFiltersKey(e);
+    const step = STEPS[e.key];
+    if (!option && !isFilters && !step) return;
+
+    if (option) this.toggle(option, cx);
+    if (isFilters) this.toggleFilters(cx);
+    if (step) this.select(this.selected + step, cx);
+    cx.stop_propagation();
+  }
+
+  status() {
+    if (this.searching) return "Searching…";
+    if (!this.query) return "";
+
+    const n = this.hits.length;
+    const count = `${n}${this.hasMore ? "+" : ""} ${n === 1 ? "hit" : "hits"}`;
+    return [this.error, count].filter(Boolean).join(" · ");
+  }
+
+  emptyText() {
+    if (this.searching) return "";
+    return this.query ? "No hits" : `Type to search ${this.root}`;
+  }
+
+  render() {
+    const t = theme();
+    const hit = this.hits[this.selected];
+    const top = {
+      input: this.input,
+      options: this.options,
+      onToggle: (option, cx) => this.toggle(option, cx),
+      paths: this.filtersOpen ? [this.include, this.exclude] : null,
+      onFilters: (cx) => this.toggleFilters(cx),
+      root: this.root,
+      status: this.status(),
+      isError: Boolean(this.error),
+    };
+    const list = {
+      hits: this.hits,
+      selected: this.selected,
+      scroll: this.scroll,
+      onClick: (i, cx) => this.select(i, cx, { scroll: false }),
+      emptyText: this.emptyText(),
+    };
+
+    return v_flex()
+      .id("river-find")
+      .size_full()
+      .min_h(0)
+      .p(14)
+      .gap(10)
+      .bg(t.surface)
+      .text_size(13)
+      .text_color(t.foreground)
+      .on_key_down((e, cx) => this.key(e, cx))
+      .child(header(top, t))
+      .child(hitList(list, t))
+      .child(preview(hit, hit && this.files.get(hit.path), t))
+      .child(keyHints(t));
+  }
+}
