@@ -7,7 +7,7 @@
   "title": "New task",
   "overlay": {
     "kind": "dialog",
-    "width": 460,
-    "height": 280
+    "width": 600,
+    "height": 454
   }
 }
