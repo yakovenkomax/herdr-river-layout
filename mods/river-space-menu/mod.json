@@ -1,0 +1,10 @@
+{
+  "place": "none",
+  "title": "Space menu",
+  "overlay": {
+    "kind": "popup",
+    "width": 412,
+    "height": 140,
+    "frame": "none"
+  }
+}
