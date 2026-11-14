@@ -27,9 +27,10 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree }) => (tree ? 32 : 34);
-const BRANCH_HEIGHT = 16;
-const AGENT_HEIGHT = 34;
+const rowHeight = ({ tree, on }) => (tree ? 32 : 34) - (on ? SELECTED_TRIM : 0);
+const SELECTED_TRIM = 4;
+const BRANCH_HEIGHT = 15;
+const AGENT_HEIGHT = 30;
 // Selecting a space unfolds its branch and agents; heights and opacity animate natively.
 const UNFOLD = { duration: 160, easing: "ease-out" };
 const FOLDER_GAP = 12;
@@ -548,7 +549,7 @@ export default class Spaces extends View {
     const color = t[shared(COLORS)?.[w.id]] ?? t[DEFAULT_COLOR];
     const dots = !on && mine.length > 0;
     const branch = g?.branch;
-    const base = rowHeight({ tree });
+    const base = rowHeight({ tree, on });
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -597,7 +598,9 @@ export default class Spaces extends View {
       .on_mouse_down("right", () => this.menu({ w, g }))
       .child(
         h_flex()
+          .id(`space-title-${w.id}`)
           .h(base)
+          .transition("height", UNFOLD)
           .flex_none()
           .gap(8)
           .items_center()
@@ -616,7 +619,7 @@ export default class Spaces extends View {
           .when(dots, (el) => el.child(h_flex().flex_none().gap(2).items_center().children(mine.map((a) => h_flex().w(14).flex_none().justify_center().child(this.statusDot(t, a)))))),
       )
       .when(Boolean(branch), (el) => el.child(
-        div().id(`space-branch-${w.id}`).absolute().left(8 + (tree ? 46 : 26)).right(8).top(base - 5).truncate().text_size(11.5).text_color(t.dim)
+        div().id(`space-branch-${w.id}`).absolute().left(8 + (tree ? 46 : 26)).right(8).top(base - 8 + SELECTED_TRIM / 2).truncate().text_size(11.5).text_color(t.dim)
           .opacity(on ? 1 : 0).transition("opacity", UNFOLD).child(branch),
       ));
   }
