@@ -27,7 +27,11 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree, branch }) => (tree ? 32 : 34) + (branch ? 16 : 0);
+const rowHeight = ({ tree }) => (tree ? 32 : 34);
+const BRANCH_HEIGHT = 16;
+const AGENT_HEIGHT = 34;
+// Selecting a space unfolds its branch and agents; heights and opacity animate natively.
+const UNFOLD = { duration: 160, easing: "ease-out" };
 const FOLDER_GAP = 12;
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
@@ -419,7 +423,7 @@ export default class Spaces extends View {
       .id(`space-agent-${a.address}`)
       .pl(tree ? 54 : 34)
       .pr(8)
-      .h(34)
+      .h(AGENT_HEIGHT)
       .flex_none()
       .rounded(8)
       .items_center()
@@ -459,7 +463,8 @@ export default class Spaces extends View {
       const apart = !r.tree && first.get(r.w.machine ?? null) !== r.w.id;
       return [v_flex().flex_none().rounded(8).when(apart, (el) => el.mt(FOLDER_GAP)).when(r.w.active, (el) => el.bg(t.selected))
         .child(this.row(r, t, mine))
-        .children(r.w.active ? mine.map((a) => this.agentRow(a, r.tree, t, { name, now })) : [])];
+        .child(v_flex().id(`space-agents-${r.w.id}`).flex_none().h(r.w.active ? mine.length * AGENT_HEIGHT : 0).transition("height", UNFOLD).overflow_hidden()
+          .children(mine.map((a) => this.agentRow(a, r.tree, t, { name, now }))))];
     };
     const remote = [...new Set([...rows.map(r => r.w.machine).filter(Boolean), ...this.machines.map(m => m.name), ...Object.keys(this.reconnecting)])].sort();
     const loading = m => {
@@ -542,14 +547,16 @@ export default class Spaces extends View {
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const color = t[shared(COLORS)?.[w.id]] ?? t[DEFAULT_COLOR];
     const dots = !on && mine.length > 0;
-    const branch = on ? g?.branch : null;
+    const branch = g?.branch;
+    const base = rowHeight({ tree });
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
       .px(8)
-      .h(rowHeight({ tree, branch }))
+      .h(base + (on && branch ? BRANCH_HEIGHT : 0))
+      .transition("height", UNFOLD)
+      .overflow_hidden()
       .flex_none()
-      .justify_center()
       .rounded(8)
       .when(!on, (el) => el.hover((s) => s.bg(t.hover)))
       .on_hover((hovered, cx) => {
@@ -590,6 +597,8 @@ export default class Spaces extends View {
       .on_mouse_down("right", () => this.menu({ w, g }))
       .child(
         h_flex()
+          .h(base)
+          .flex_none()
           .gap(8)
           .items_center()
           .when(Boolean(tree), el => el.pl(26).child(svg("mods/river-spaces/icons/diamond.svg").size(12).flex_none().text_color(color)))
@@ -606,7 +615,10 @@ export default class Spaces extends View {
           // Each dot sits in a box as wide as an agent row's status, so the two line up.
           .when(dots, (el) => el.child(h_flex().flex_none().gap(2).items_center().children(mine.map((a) => h_flex().w(14).flex_none().justify_center().child(this.statusDot(t, a)))))),
       )
-      .when(Boolean(branch), (el) => el.child(div().pl(tree ? 46 : 26).mt(-2).truncate().text_size(11.5).text_color(t.dim).child(branch)));
+      .when(Boolean(branch), (el) => el.child(
+        div().id(`space-branch-${w.id}`).absolute().left(8 + (tree ? 46 : 26)).right(8).top(base - 5).truncate().text_size(11.5).text_color(t.dim)
+          .opacity(on ? 1 : 0).transition("opacity", UNFOLD).child(branch),
+      ));
   }
 
   compact({ w, i }, t) {
