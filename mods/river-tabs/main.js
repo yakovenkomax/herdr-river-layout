@@ -66,7 +66,7 @@ export default class Tabs extends View {
           else run("tab.select", { id: c.id });
         })
         .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
-        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(14).mr(3).text_color(t.muted) : image(program.icon).size(14).mr(3)))
+        .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(12).mr(3).text_color(t.muted) : image(program.icon).size(12).mr(3)))
         // A file tab (a pane listed in the shared "river.views") has no program to take an icon from.
         .when(Boolean(fileView), el => el.child(svg(fileView.hasChanges ? "mods/river-tabs/icons/file-diff.svg" : "mods/river-tabs/icons/file.svg").size(14).mr(3).text_color(t.muted)))
         .child(div().max_w(170).truncate().child(c.zoomed ? `${name} Z` : name))

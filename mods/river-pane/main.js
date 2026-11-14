@@ -76,7 +76,7 @@ export default class Pane extends View {
       .on_click((_e, cx) => { cx.stop_propagation(); setShared(DIFF_MODE, mode); })
       .child(svg(`mods/river-pane/icons/${icon}.svg`).size(14));
     const name = isMod ? tabName || p.title : ((p.program?.agent || p.program?.shell) && p.program.name) || p.title || p.program?.name || "shell";
-    const pic = icon(p.program, 14, t.dim);
+    const pic = icon(p.program, 12, t.dim);
     const st = p.status;
     const pane = p.pane;
     const bottom = paneFrame(layout())?.header?.position === "bottom";

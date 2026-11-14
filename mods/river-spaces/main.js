@@ -27,7 +27,8 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree, branch }) => (branch ? 50 : tree ? 32 : 34);
+const rowHeight = ({ tree, branch }) => (tree ? 32 : 34) + (branch ? 16 : 0);
+const FOLDER_GAP = 12;
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -411,18 +412,18 @@ export default class Spaces extends View {
   }
 
   agentRow(a, tree, t, context) {
-    const picture = agentIcon(a.program, 16, t.foreground);
+    const picture = agentIcon(a.program, 12, t.foreground);
     const when = this.agentChanged[a.address]?.at ?? 0;
     const isResting = a.status === "idle" && !a.focused;
     return h_flex()
       .id(`space-agent-${a.address}`)
-      .pl(tree ? 57 : 35)
+      .pl(tree ? 54 : 34)
       .pr(8)
       .h(34)
       .flex_none()
       .rounded(8)
       .items_center()
-      .gap(9)
+      .gap(8)
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => run("pane.focus", { pane: a.pane }))
@@ -450,10 +451,13 @@ export default class Spaces extends View {
     setAgentOrder(rows.flatMap((r) => mineOf(r.w).map((a) => a.address)));
     // A space and its agents share one selection background. It shows its agents
     // as rows only while selected, as dots on its own row otherwise.
+    const first = new Map();
+    for (const r of rows) if (!first.has(r.w.machine ?? null)) first.set(r.w.machine ?? null, r.w.id);
     const draw = (r) => {
       if (collapsed) return [this.compact(r, t)];
       const mine = mineOf(r.w);
-      return [v_flex().flex_none().rounded(8).when(r.w.active, (el) => el.bg(t.selected))
+      const apart = !r.tree && first.get(r.w.machine ?? null) !== r.w.id;
+      return [v_flex().flex_none().rounded(8).when(apart, (el) => el.mt(FOLDER_GAP)).when(r.w.active, (el) => el.bg(t.selected))
         .child(this.row(r, t, mine))
         .children(r.w.active ? mine.map((a) => this.agentRow(a, r.tree, t, { name, now })) : [])];
     };
@@ -538,7 +542,7 @@ export default class Spaces extends View {
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const color = t[shared(COLORS)?.[w.id]] ?? t[DEFAULT_COLOR];
     const dots = !on && mine.length > 0;
-    const branch = tree && on ? g?.branch : null;
+    const branch = on ? g?.branch : null;
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -586,9 +590,9 @@ export default class Spaces extends View {
       .on_mouse_down("right", () => this.menu({ w, g }))
       .child(
         h_flex()
-          .gap(9)
+          .gap(8)
           .items_center()
-          .when(Boolean(tree), el => el.pl(27).child(svg("mods/river-spaces/icons/diamond.svg").size(13).flex_none().text_color(color)))
+          .when(Boolean(tree), el => el.pl(26).child(svg("mods/river-spaces/icons/diamond.svg").size(12).flex_none().text_color(color)))
           .when(!tree, el => el.child(svg(letterIcon(w.name)).size(18).flex_none().text_color(color)))
           .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(label({ w, g, tree })))
           .when(Boolean(g) && !g.linked, (el) => el.child(
@@ -602,7 +606,7 @@ export default class Spaces extends View {
           // Each dot sits in a box as wide as an agent row's status, so the two line up.
           .when(dots, (el) => el.child(h_flex().flex_none().gap(2).items_center().children(mine.map((a) => h_flex().w(14).flex_none().justify_center().child(this.statusDot(t, a)))))),
       )
-      .when(Boolean(branch), (el) => el.child(div().pl(49).truncate().text_size(11.5).text_color(t.dim).child(branch)));
+      .when(Boolean(branch), (el) => el.child(div().pl(tree ? 46 : 26).mt(-2).truncate().text_size(11.5).text_color(t.dim).child(branch)));
   }
 
   compact({ w, i }, t) {
