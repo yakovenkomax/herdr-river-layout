@@ -11,8 +11,9 @@ The repository is laid out like the Herdr app home (`~/.config/herdr-app`), so t
 | `layouts/river.json` | the layout | clone of Herdr's `main` |
 | `mods/river-changes` | Changes list, file tabs with diff, comments and highlighting | own |
 | `mods/river-create-task` | new-task dialog: title, branch, worktree, setup script, agent, terminal | clone of Herdr's `worktree` |
-| `mods/river-spaces` | sidebar: spaces with their agents; a new space starts in a picked folder | clone of Herdr's `spaces` |
-| `mods/river-space-menu` | a space's right-click menu: rename, new task, color | from Herdr's `menu` |
+| `mods/river-close` | close-task and close-project dialog: optionally deletes worktrees and branches, warns about unpushed work | from Herdr's `worktree` |
+| `mods/river-spaces` | sidebar: projects with their tasks and agents; a new project starts in a picked folder | clone of Herdr's `spaces` |
+| `mods/river-space-menu` | the sidebar's right-click menus: new task, rename, icon color, close; new project on the empty area | from Herdr's `menu` |
 | `mods/river-tabs` | tab bar | tab bar of herdr-annotator by jakub-tucek, itself from Herdr's `tabs` |
 | `mods/river-pane` | pane title bar | clone of Herdr's `pane` |
 | `mods/river-chrome` | top bar | clone of Herdr's `workspace-chrome` |
@@ -52,6 +53,8 @@ A task is a space on its own git worktree, named by its title; the sidebar lists
 - **Open tabs**: a terminal and any of the installed agents (from `knownAgents()`, so `programs.json` decides how each runs), one tab each, the terminal first. With nothing chosen the space still gets a terminal. The choice is remembered per project.
 
 Checkouts go to `~/.herdr/worktrees/<repo>/<branch>`.
+
+Closing a task (its right-click menu) asks whether to delete its worktree and branch too; the box starts ticked unless that would lose uncommitted changes, commits that are on no remote and no other branch, or unpushed submodule commits, which it lists. Closing a project leaves its folder alone, closes its open tasks with it and can delete their worktrees and branches the same way. The same dialog replaces Herdr's own confirmation when a space's last tab or pane is closed from the tab bar, the pane header or `cmd-w` / `cmd-shift-w` (the `layout:river` section of `keys.json`). A space closed another way (its last program exiting, the command palette) skips it, so a task whose project is closed is listed above the projects until the project is opened again.
 
 Other requirements: `river-changes` colours code with Shiki through Node (`mods/river-changes/shiki`), and `river-find` needs ripgrep.
 

@@ -1,6 +1,6 @@
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings } from "herdr";
+import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings, focused, nextCommand } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -11,8 +11,29 @@ function find(node, id) {
   return null;
 }
 
+// Closing a space's last tab closes the space: River asks with its own dialog,
+// which knows about the task's worktree and the project's tasks.
+function closeTab(id) {
+  const space = spaces().find((s) => (s.tabs ?? []).some((c) => c.id === id));
+  if (space && space.tabs.length === 1) openOverlay({ mod: "river-close", kind: "dialog", width: 460, height: 280, props: { space: space.id } });
+  else run("tab.close", { id });
+}
+
+function closePane(pane) {
+  const tab = panes().find((p) => p.pane === pane)?.tab;
+  if (tab && panes().filter((p) => p.tab === tab).length === 1) closeTab(tab);
+  else run("pane.close", pane ? { pane } : {});
+}
+
 export default class Tabs extends View {
-  init() {
+  init(_props, cx) {
+    cx.spawn(async () => {
+      for (;;) {
+        const command = await nextCommand();
+        if (command === "close-tab" && focused()?.tab) closeTab(focused().tab);
+        else if (command === "close-pane") closePane(focused()?.pane);
+      }
+    });
     this.pressed = null;
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
   }
@@ -81,7 +102,7 @@ export default class Tabs extends View {
         .child(div().id(`close-${c.id}`).size(16).flex_none().flex().items_center().justify_center().rounded(8).text_color(t.dim)
           .when(!c.active && this.hoveredTab !== c.id, el => el.invisible())
           .hover(s => s.bg(t.border).text_color(t.foreground))
-          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); run("tab.close", { id: c.id }); }).child(svg("mods/river-tabs/icons/close.svg").size(12)));
+          .on_mouse_down("left", stop).on_click((_e, cx) => { cx.stop_propagation(); closeTab(c.id); }).child(svg("mods/river-tabs/icons/close.svg").size(12)));
     };
     const root = layout(), sidebar = find(root, "sidebar"), w = window();
     // Old saved rails and a dragged-narrow sidebar can be smaller than the window buttons.

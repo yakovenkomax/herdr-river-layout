@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, props, run, theme, home, layout, spaces, shared, setShared } from "herdr";
+import { panes, props, run, theme, home, layout, spaces, shared, setShared, openOverlay } from "herdr";
 
 // A mod's pane is named after its tab. A file view (a pane listed in the shared "river.views")
 // with changes also gets the view toggle, which writes the shared "river.diff-mode".
@@ -40,6 +40,15 @@ function folder(cwd) {
   return cwd === h ? "~" : cwd.startsWith(h + "/") ? "~" + cwd.slice(h.length) : cwd;
 }
 
+// Closing the last pane of a space's last tab closes the space: River asks with its
+// own dialog, which knows about the task's worktree and the project's tasks.
+function closePane(pane) {
+  const tab = panes().find((p) => p.pane === pane)?.tab;
+  const space = spaces().find((s) => (s.tabs ?? []).some((c) => c.id === tab));
+  if (space && space.tabs.length === 1 && panes().filter((p) => p.tab === tab).length === 1) openOverlay({ mod: "river-close", kind: "dialog", width: 460, height: 280, props: { space: space.id } });
+  else run("pane.close", { pane });
+}
+
 export default class Pane extends View {
   init() { this.hovered = false; }
 
@@ -56,7 +65,8 @@ export default class Pane extends View {
       .hover((s) => s.bg(t.hover).text_color(t.foreground))
       .on_click((_e, cx) => {
         cx.stop_propagation();
-        run(command, args);
+        if (typeof command === "function") command();
+        else run(command, args);
       })
       .child(svg(`mods/river-pane/icons/${icon}.svg`).size(14));
   }
@@ -106,6 +116,6 @@ export default class Pane extends View {
         .child(this.button(t, `ph-r-${pane}`, "split-right", "pane.split", { direction: "right", pane }))
         .child(this.button(t, `ph-d-${pane}`, "split-down", "pane.split", { direction: "down", pane }))
         .child(this.button(t, `ph-z-${pane}`, p.zoomed ? "unzoom" : "zoom", "pane.zoom", { pane }))
-        .child(this.button(t, `ph-x-${pane}`, "close", "pane.close", { pane })));
+        .child(this.button(t, `ph-x-${pane}`, "close", () => closePane(pane))));
   }
 }

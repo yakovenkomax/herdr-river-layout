@@ -1,10 +1,10 @@
 {
   "place": "none",
-  "title": "Space menu",
+  "title": "Sidebar menu",
   "overlay": {
     "kind": "popup",
     "width": 412,
-    "height": 140,
+    "height": 170,
     "frame": "none"
   }
 }

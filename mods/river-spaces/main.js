@@ -1,7 +1,8 @@
-// Workspace spaces: a lettered icon in the space's color, tasks (worktrees) under their checkout,
-// grouped by machine when more than one is known. After a space's name, the repo
-// its first terminal is in now, only where unusual: branch, ahead/behind. Agent state lives in the agents list, not here. Click to
-// switch, right-click for its menu, drag to reorder.
+// Workspace spaces: a project is a lettered icon in its color with its tasks (worktrees)
+// under it; a task whose project isn't open is listed above the projects. Grouped by
+// machine when more than one is known. A selected space unfolds its branch and agents;
+// the others show their agents as status dots. Click to switch, right-click for its
+// menu, drag to reorder.
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -111,13 +112,14 @@ function toggleSidebar() {
 // A new space on this computer starts in a picked folder and is named after it. The folder a
 // space was made in stays its own: the Changes list, the Project panel and Find in Files use it.
 async function newSpace() {
-  const folder = await pickFolder({ prompt: "Create space" });
+  const folder = await pickFolder({ prompt: "Open project" });
   if (folder) run("space.new", { folder, name: base(folder), machine: "" });
 }
 
 function newTask(w) {
-  openOverlay({ mod: "river-create-task", kind: "dialog", width: 600, height: 454, props: { space: w.id, action: "new" } });
+  openOverlay({ mod: "river-create-task", kind: "dialog", width: 600, height: 454, props: { space: w.id } });
 }
+
 
 export default class Spaces extends View {
   init(_props, cx) {
@@ -339,8 +341,8 @@ export default class Spaces extends View {
     });
   }
 
-  menu({ w, g }) {
-    openOverlay({ mod: "river-space-menu", kind: "popup", width: 412, height: 140, frame: "none", props: { target: { id: w.id }, repo: Boolean(g) } });
+  menu({ w, tree }) {
+    openOverlay({ mod: "river-space-menu", kind: "popup", width: 412, height: 170, frame: "none", props: { kind: tree ? "task" : "project", target: { id: w.id } } });
   }
 
   orderingDue(now) {
@@ -356,15 +358,21 @@ export default class Spaces extends View {
     const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
+    // A task whose project isn't open: listed before the projects of its machine
+    // (space.move stays inside a machine's block).
+    const orphan = (r) => Boolean(r.g?.linked) && !mains.has(r.g.repo);
     const out = [];
     const placed = new Set(); // repos whose worktrees are listed (under the first of its spaces)
-    for (const r of list) {
-      if (nested(r)) continue;
-      out.push({ ...r, tree: null });
-      if (!r.g || r.g.linked || placed.has(r.g.repo)) continue;
-      placed.add(r.g.repo);
-      const kids = list.filter((k) => nested(k) && k.g.repo === r.g.repo);
-      kids.forEach((k, n) => out.push({ ...k, tree: n === kids.length - 1 ? "└─" : "├─" }));
+    for (const m of new Set(list.map((r) => r.w.machine ?? null))) {
+      const mine = list.filter((r) => (r.w.machine ?? null) === m);
+      for (const r of mine) if (orphan(r)) out.push({ ...r, tree: "orphan" });
+      for (const r of mine) {
+        if (nested(r) || orphan(r)) continue;
+        out.push({ ...r, tree: null });
+        if (!r.g || r.g.linked || placed.has(r.g.repo)) continue;
+        placed.add(r.g.repo);
+        for (const k of list) if (nested(k) && k.g.repo === r.g.repo) out.push({ ...k, tree: "nested" });
+      }
     }
     // Simulate the batch so later indexes include earlier moves. An attempted
     // write can lose a sync conflict: allow the echo to settle before retrying.
@@ -422,7 +430,7 @@ export default class Spaces extends View {
     const isResting = a.status === "idle" && !a.focused;
     return h_flex()
       .id(`space-agent-${a.address}`)
-      .pl(tree ? 54 : 34)
+      .pl(tree === "nested" ? 54 : 34)
       .pr(8)
       .h(AGENT_HEIGHT)
       .flex_none()
@@ -521,28 +529,6 @@ export default class Spaces extends View {
     });
   }
 
-  // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
-  // branch goes when the name already says it (a worktree is named after its branch),
-  // and master/main go: nearly every space is on one.
-  gitTail(g, tree, name, t) {
-    const same = (a) => a.toLowerCase() === name.toLowerCase();
-    // Rows keep their width for the name: no branch on any row.
-    const branch = "";
-    const repo = tree || same(g.name) ? "" : g.name;
-    const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
-    return h_flex()
-      .flex_none()
-      .max_w(120)
-      .gap(5)
-      .justify_end()
-      .items_center()
-      .text_size(11.5)
-      .text_color(t.dim)
-      .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
-      .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(t.ansi2).child(`\u2191${g.ahead}`)))
-      .when(Boolean(tree) && g.behind > 0, (el) => el.child(div().flex_none().text_color(t.ansi1).child(`\u2193${g.behind}`)));
-  }
-
   row({ w, i, g, tree }, t, mine) {
     const on = w.active;
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
@@ -550,6 +536,7 @@ export default class Spaces extends View {
     const dots = !on && mine.length > 0;
     const branch = g?.branch;
     const base = rowHeight({ tree, on });
+    const nested = tree === "nested";
     return v_flex()
       .relative()
       .id(`space-${w.id}`)
@@ -574,11 +561,13 @@ export default class Spaces extends View {
       ))
       .on_mouse_down("left", () => {
         this.pressed = w.id;
+        this.pressedOrphan = tree === "orphan";
         this.over = w.id;
       })
       .on_mouse_move((_e, cx) => {
         const source = spaces().find(s => s.id === this.pressed);
-        const over = source && (source.machine ?? null) === (w.machine ?? null) ? w.id : null;
+        // Orphan tasks stay above the projects: they only trade places among themselves.
+        const over = source && (source.machine ?? null) === (w.machine ?? null) && this.pressedOrphan === (tree === "orphan") ? w.id : null;
         if (this.pressed !== null && this.over !== over) {
           this.over = over;
           cx.notify();
@@ -595,7 +584,7 @@ export default class Spaces extends View {
         } else if (from === w.id) run("space.select", { id: w.id });
         cx.notify();
       })
-      .on_mouse_down("right", () => this.menu({ w, g }))
+      .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); this.menu({ w, tree }); })
       .child(
         h_flex()
           .id(`space-title-${w.id}`)
@@ -604,10 +593,11 @@ export default class Spaces extends View {
           .flex_none()
           .gap(8)
           .items_center()
-          .when(Boolean(tree), el => el.pl(26).child(svg("mods/river-spaces/icons/diamond.svg").size(12).flex_none().text_color(color)))
+          .when(Boolean(tree), el => el.pl(nested ? 26 : 3).child(svg("mods/river-spaces/icons/diamond.svg").size(12).flex_none().when(!nested, (icon) => icon.mr(3)).text_color(color)))
           .when(!tree, el => el.child(svg(letterIcon(w.name)).size(18).flex_none().text_color(color)))
           .child(div().flex_1().min_w(0).truncate().text_color(t.foreground).child(label({ w, g, tree })))
-          .when(Boolean(g) && !g.linked, (el) => el.child(
+          .when(tree === "orphan", (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11.5).text_color(t.dim).child(g.name)))
+          .when(!tree, (el) => el.child(
             div().id(`space-task-${w.id}`).size(20).when(this.hovered !== w.id, (b) => b.invisible()).flex_none().flex().items_center().justify_center().rounded(5).text_color(t.dim)
               .tooltip("New task")
               .hover((s) => s.bg(t.hover).text_color(t.foreground))
@@ -619,7 +609,7 @@ export default class Spaces extends View {
           .when(dots, (el) => el.child(h_flex().flex_none().gap(2).items_center().children(mine.map((a) => h_flex().w(14).flex_none().justify_center().child(this.statusDot(t, a)))))),
       )
       .when(Boolean(branch), (el) => el.child(
-        div().id(`space-branch-${w.id}`).absolute().left(8 + (tree ? 46 : 26)).right(8).top(base - 8 + SELECTED_TRIM / 2).truncate().text_size(11.5).text_color(t.dim)
+        div().id(`space-branch-${w.id}`).absolute().left(8 + (nested ? 46 : 26)).right(8).top(base - 8 + SELECTED_TRIM / 2).truncate().text_size(11.5).text_color(t.dim)
           .opacity(on ? 1 : 0).transition("opacity", UNFOLD).child(branch),
       ));
   }
@@ -646,6 +636,7 @@ export default class Spaces extends View {
     return v_flex().size_full().min_h(0).bg(t.chrome).text_size(13)
       .child(v_flex().flex_1().min_h(0).px(collapsed ? 0 : 8).pt(8).pb(14).overflow_y_scrollbar().mode("always")
         .on_mouse_up("left", (_e, cx) => { this.pressed = null; cx.notify(); })
+        .on_mouse_down("right", () => openOverlay({ mod: "river-space-menu", kind: "popup", width: 412, height: 170, frame: "none", props: { kind: "empty" } }))
         .children(this.grouped(t, collapsed)))
       .when(collapsed, (el) => el.child(h_flex().h(28).flex_none().items_center().justify_center()
         .child(div().id("collapse").text_size(13).text_color(t.dim).hover((s) => s.text_color(t.foreground)).on_click(toggleSidebar).child("»"))));

@@ -1,0 +1,9 @@
+{
+  "place": "none",
+  "title": "Close",
+  "overlay": {
+    "kind": "dialog",
+    "width": 460,
+    "height": 280
+  }
+}

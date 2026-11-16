@@ -3,5 +3,9 @@
 		"cmd-n": "river-spaces.new-space",
 		"cmd-shift-n": "mod.open:river-create-task",
 		"cmd-shift-f": "mod.open:river-find"
+	},
+	"layout:river": {
+		"cmd-w": "river-tabs.close-tab",
+		"cmd-shift-w": "river-tabs.close-pane"
 	}
 }

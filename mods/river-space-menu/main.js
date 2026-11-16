@@ -1,5 +1,5 @@
-// A space's right-click menu, opened as a frameless popup with props
-// { target: { id }, repo: boolean } (repo: the space is in a git repository).
+// The sidebar's right-click menus, opened as a frameless popup with props
+// { kind: "project" | "task" | "empty", target: { id } }.
 // The popup is wider than the menu: the colors open beside it, in the same popup.
 
 import { View, div, svg } from "gpui-kit";
@@ -13,11 +13,14 @@ const ROW = 31;
 const icon = (name) => `mods/river-space-menu/icons/${name}.svg`;
 
 function items(p) {
+  if (p?.kind === "empty") return [{ label: "New project", icon: "plus", act: () => run("river-spaces.new-space") }];
   const id = p?.target?.id ?? focused()?.space;
+  const task = p?.kind === "task";
   return [
+    ...(!task ? [{ label: "New task", icon: "plus", act: () => openOverlay({ mod: "river-create-task", kind: "dialog", width: 600, height: 454, props: { space: id } }) }] : []),
     { label: "Rename", icon: "square-pen", act: () => run("space.rename", { id }) },
-    ...(p?.repo ? [{ label: "New task", icon: "plus", act: () => openOverlay({ mod: "river-create-task", kind: "dialog", width: 600, height: 454, props: { space: id, action: "new" } }) }] : []),
-    { label: "Choose color", icon: "palette", colors: true },
+    { label: "Icon color", icon: "palette", colors: true },
+    { label: `Close ${task ? "task" : "project"}`, icon: "x", line: true, act: () => openOverlay({ mod: "river-close", kind: "dialog", width: 460, height: 280, props: { space: id, kind: task ? "task" : "project" } }) },
   ];
 }
 
@@ -121,6 +124,7 @@ export default class SpaceMenu extends View {
         this.card(t).w(200).children(
           list.map((it, i) =>
             v_flex()
+              .when(Boolean(it.line), (el) => el.child(div().mx(7).my(4).h(1).bg(t.border)))
               .child(
                 h_flex()
                   .id(`mi-${i}`)

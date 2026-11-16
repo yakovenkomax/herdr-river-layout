@@ -4,7 +4,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 APP_HOME="${HERDR_APP_HOME:-$HOME/.config/herdr-app}"
 LAYOUTS=(river)
-MODS=(river-create-task river-spaces river-space-menu river-tabs river-pane river-chrome river-changes river-files river-find)
+MODS=(river-create-task river-close river-spaces river-space-menu river-tabs river-pane river-chrome river-changes river-files river-find)
 EXCLUDES=(--exclude node_modules --exclude gpui-kit.d.ts --exclude jsconfig.json --exclude '*.error' --exclude .DS_Store)
 
 copy() {
