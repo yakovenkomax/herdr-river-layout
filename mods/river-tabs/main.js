@@ -86,7 +86,7 @@ export default class Tabs extends View {
           if (from !== null && from !== i) run("tab.move", { id: shown[from].id, index: space.tabs.findIndex(x => x.id === c.id) + 1 });
           else run("tab.select", { id: c.id });
         })
-        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "menu", kind: "popup", width: 200, props: { tab: "tab", target: { id: c.id, space: space.id } } }); })
+        .on_mouse_down("right", (_e, cx) => { cx.stop_propagation(); openOverlay({ mod: "river-space-menu", kind: "popup", width: 412, height: 170, frame: "none", props: { kind: "tab", target: { id: c.id, space: space.id } } }); })
         .when(Boolean(program?.icon), el => el.child(program.tint ? svg(program.icon).size(12).mr(3).text_color(t.muted) : image(program.icon).size(12).mr(3)))
         // A file tab (a pane listed in the shared "river.views") has no program to take an icon from.
         .when(Boolean(fileView), el => el.child(svg(fileView.hasChanges ? "mods/river-tabs/icons/file-diff.svg" : "mods/river-tabs/icons/file.svg").size(14).mr(3).text_color(t.muted)))

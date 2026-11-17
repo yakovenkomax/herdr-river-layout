@@ -1,10 +1,11 @@
 // The sidebar's right-click menus, opened as a frameless popup with props
-// { kind: "project" | "task" | "empty", target: { id } }.
+// { kind: "project" | "task" | "empty", target: { id } }, { kind: "tab", target: { id } }
+// or { kind: "agent", target: { tab, pane } } (an agent's row in the sidebar).
 // The popup is wider than the menu: the colors open beside it, in the same popup.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, openOverlay, theme, focused, shared, setShared } from "herdr";
+import { run, props, closeOverlay, openOverlay, theme, focused, shared, setShared, spaces, panes } from "herdr";
 
 // { [space id]: theme color name }, read by river-spaces. No entry: the default, SWATCHES[0].
 const COLORS = "river.space-colors";
@@ -12,7 +13,31 @@ const SWATCHES = ["dim", "ansi1", "ansi2", "ansi3", "ansi4", "ansi5", "ansi6"];
 const ROW = 31;
 const icon = (name) => `mods/river-space-menu/icons/${name}.svg`;
 
+// Closing a space's last tab closes the space: River asks with its own dialog,
+// which knows about the task's worktree and the project's tasks.
+function closeTab(id) {
+  const space = spaces().find((s) => (s.tabs ?? []).some((c) => c.id === id));
+  if (space && space.tabs.length === 1) openOverlay({ mod: "river-close", kind: "dialog", width: 460, height: 280, props: { space: space.id } });
+  else run("tab.close", { id });
+}
+
+function closePane(pane) {
+  const tab = panes().find((p) => p.pane === pane)?.tab;
+  if (tab && panes().filter((p) => p.tab === tab).length === 1) closeTab(tab);
+  else run("pane.close", { pane });
+}
+
 function items(p) {
+  const tg = p?.target ?? {};
+  if (p?.kind === "tab") return [
+    { label: "Rename", icon: "square-pen", act: () => run("tab.rename", { id: tg.id }) },
+    { label: "New tab", icon: "plus", act: () => run("tab.new", { space: tg.space }) },
+    { label: "Close", icon: "x", line: true, act: () => closeTab(tg.id) },
+  ];
+  if (p?.kind === "agent") return [
+    { label: "Rename", icon: "square-pen", act: () => run("tab.rename", { id: tg.tab }) },
+    { label: "Close", icon: "x", line: true, act: () => closePane(tg.pane) },
+  ];
   if (p?.kind === "empty") return [{ label: "Open project", icon: "plus", act: () => run("river-spaces.new-space") }];
   const id = p?.target?.id ?? focused()?.space;
   const task = p?.kind === "task";
