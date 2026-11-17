@@ -5,7 +5,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, theme, spaces, panes, exec, home } from "herdr";
+import { run, props, closeOverlay, theme, spaces, panes, exec, home, window } from "herdr";
 
 // A space's root: the folder it was made in. Only a space made in the home folder
 // follows its first terminal instead.
@@ -113,6 +113,7 @@ export default class Close extends View {
     this.error = "";
     this.repo = undefined; // undefined: looking, null: not in git
     this.tasks = []; // the task itself, or the project's tasks
+    this.name = this.space()?.name ?? "";
     this.handle = cx.focus_handle();
     this.handle.focus();
     cx.spawn(async (cx) => {
@@ -165,15 +166,18 @@ export default class Close extends View {
       const before = JSON.stringify(this.tasks.map((k) => losses(k.risks, k.branch)));
       for (const k of this.tasks) k.risks = await risks(k.top, k.branch, s.machine);
       if (JSON.stringify(this.tasks.map((k) => losses(k.risks, k.branch))) !== before && this.tasks.some((k) => atRisk(k.risks))) return "It changed since this opened. Close again deletes it anyway.";
+      // The spaces close last, so a task leaves the sidebar when the dialog does. Only
+      // Windows needs them gone first: a shell sitting in the folder keeps it busy there.
+      const first = window()?.platform === "windows";
       for (const k of this.tasks) {
-        // Terminals first: a shell sitting in the folder keeps it busy on Windows.
-        run("space.close", { id: k.space.id, confirmed: true });
+        if (first) run("space.close", { id: k.space.id, confirmed: true });
         const gone = await git(this.repo.main, ["worktree", "remove", ...(k.risks.force ? ["--force"] : []), k.top], s.machine, 600_000);
         if (!gone.ok) return gone.err || "git worktree remove failed.";
         if (!k.branch) continue;
         const deleted = await git(this.repo.main, ["branch", "-D", k.branch], s.machine);
         if (!deleted.ok) return deleted.err || "git branch -D failed.";
       }
+      if (!first) for (const k of this.tasks) run("space.close", { id: k.space.id, confirmed: true });
     }
     if (!this.task || !this.remove) run("space.close", { id: s.id, confirmed: true });
     return "";
@@ -196,7 +200,6 @@ export default class Close extends View {
 
   render() {
     const t = theme();
-    const s = this.space();
     const what = this.task === undefined ? "" : this.task ? " task" : " project";
     const closes = this.task || !this.tasks.length ? "" : ` Its ${plural(this.tasks.length, "task")} close with it.`;
     const button = (id, label, primary, act) =>
@@ -215,7 +218,7 @@ export default class Close extends View {
       .gap(10)
       .bg(t.popover)
       .text_size(13)
-      .child(div().font_semibold().text_color(t.foreground).child(`Close${what} ${s?.name ?? ""}?`))
+      .child(div().font_semibold().text_color(t.foreground).child(`Close${what} ${this.name}?`))
       .child(div().text_color(t.muted).child(this.repo === undefined ? "\u2026" : `All tabs will be closed.${closes}`))
       .when(this.tasks.length > 0, (el) =>
         el
