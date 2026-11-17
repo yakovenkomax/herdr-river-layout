@@ -1,0 +1,10 @@
+{
+  "place": "none",
+  "title": "Sidebar menu",
+  "overlay": {
+    "kind": "popup",
+    "width": 412,
+    "height": 170,
+    "frame": "none"
+  }
+}
