@@ -520,10 +520,10 @@ export default class Spaces extends View {
       const empty = h_flex().id(`machine-new-${m ?? "local"}`).h(28).flex_none().px(collapsed ? 0 : 8).gap(7).items_center().rounded(7)
         .text_size(12).text_color(t.dim).hover(s => s.bg(t.hover).text_color(t.foreground))
         .on_click((_e, cx) => { if (m) run("space.new", { machine: m }); else cx.spawn(newSpace); })
-        .when(collapsed, el => el.w(RAIL_CELL).rounded(6).justify_center().tooltip(`New space on ${m ?? "this computer"}`)
+        .when(collapsed, el => el.w(RAIL_CELL).rounded(6).justify_center().tooltip(`Open project on ${m ?? "this computer"}`)
           .child(h_flex().size(18).rounded(5).border_1().border_color(t.dim).items_center().justify_center()
             .child(svg("mods/river-spaces/icons/plus.svg").size(10))))
-        .when(!collapsed, el => el.child(svg("mods/river-spaces/icons/plus.svg").size(12)).child("New space there"));
+        .when(!collapsed, el => el.child(svg("mods/river-spaces/icons/plus.svg").size(12)).child("Open project there"));
       if (!collapsed && rebuilt) return [head];
       const cell = collapsed ? railCell : (el) => el;
       return [cell(head), ...(folded ? [] : mine.length ? mine.flatMap(draw) : [loading(m) ? loadingRow(m) : cell(empty)])];

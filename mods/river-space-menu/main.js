@@ -13,7 +13,7 @@ const ROW = 31;
 const icon = (name) => `mods/river-space-menu/icons/${name}.svg`;
 
 function items(p) {
-  if (p?.kind === "empty") return [{ label: "New project", icon: "plus", act: () => run("river-spaces.new-space") }];
+  if (p?.kind === "empty") return [{ label: "Open project", icon: "plus", act: () => run("river-spaces.new-space") }];
   const id = p?.target?.id ?? focused()?.space;
   const task = p?.kind === "task";
   return [

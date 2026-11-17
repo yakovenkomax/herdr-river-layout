@@ -13,7 +13,7 @@ The repository is laid out like the Herdr app home (`~/.config/herdr-app`), so t
 | `mods/river-create-task` | new-task dialog: title, branch, worktree, setup script, agent, terminal | clone of Herdr's `worktree` |
 | `mods/river-close` | close-task and close-project dialog: optionally deletes worktrees and branches, warns about unpushed work | from Herdr's `worktree` |
 | `mods/river-spaces` | sidebar: projects with their tasks and agents; a new project starts in a picked folder | clone of Herdr's `spaces` |
-| `mods/river-space-menu` | the sidebar's right-click menus: new task, rename, icon color, close; new project on the empty area | from Herdr's `menu` |
+| `mods/river-space-menu` | the sidebar's right-click menus: new task, rename, icon color, close; open project on the empty area | from Herdr's `menu` |
 | `mods/river-tabs` | tab bar | tab bar of herdr-annotator by jakub-tucek, itself from Herdr's `tabs` |
 | `mods/river-pane` | pane title bar | clone of Herdr's `pane` |
 | `mods/river-chrome` | top bar | clone of Herdr's `workspace-chrome` |
