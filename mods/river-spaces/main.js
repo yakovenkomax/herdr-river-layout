@@ -440,6 +440,7 @@ export default class Spaces extends View {
       .cursor_pointer()
       .hover((s) => s.bg(t.hover))
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      .on_mouse_down("right", (_e, cx) => cx.stop_propagation())
       .when(Boolean(picture), (el) => el.child(picture))
       .child(div().flex_1().min_w(0).truncate().text_color(isResting ? t.muted : t.foreground).child(context.name(a)))
       .when(Boolean(when), (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child(duration(context.now - when))))
