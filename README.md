@@ -34,6 +34,7 @@ No mod names another mod. They meet through shared-state keys; the first three a
 | `river.views` | `{ [pane id]: { file, on, hasChanges } }`, one entry per open file tab | the viewer | `river-tabs`, `river-pane`, `river-files` |
 | `river.diff-mode` | `"unified"` or `"split"` | `river-pane` | the viewer |
 | `river.space-colors` | `{ [space id]: theme color name }`, the color of a space's icon; no entry is the default grey (`dim`) | `river-space-menu` | `river-spaces` |
+| `river.closing` | `[worktree path]`, the worktrees being deleted right now; their panels keep what they show meanwhile | `river-close` | `river-changes`, `river-files` |
 | `river.task-agents` | `{ [machine]: agents }`, the installed agents each machine last reported | `river-create-task` | `river-create-task` |
 | `river.task-defaults` | `{ [machine + main checkout]: { agents, terminal } }`, the last new-task choice per project | `river-create-task` | `river-create-task` |
 

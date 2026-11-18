@@ -164,6 +164,7 @@ export class FilesPanel extends View {
   }
   refresh(cx, options = {}) {
     const loc = this.location(), context = loc.key;
+    if (context === this.context && (shared("river.closing") ?? []).some(top => loc.cwd === top || String(loc.cwd ?? "").startsWith(`${top}/`))) return;
     const changedContext = context !== this.context;
     if (context !== this.context) {
       this.context = context; this.spaceId = loc.space; this.root = loc.cwd; this.on = loc.on; this.workspace = loc.entry;

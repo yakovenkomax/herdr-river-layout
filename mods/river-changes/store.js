@@ -14,6 +14,15 @@ export const COMMENTS = "river-changes.comments";
 // "unified" | "split": written by whoever draws the toggle, read by the file view.
 export const MODE = "river.diff-mode";
 
+// Worktrees being deleted right now, set by whoever deletes them: what is shown of them stays as it is.
+const CLOSING = "river.closing";
+
+export function isClosing(path) {
+  const at = String(path ?? "").replace(/\\/g, "/");
+
+  return (shared(CLOSING) ?? []).some((top) => at === top || at.startsWith(`${top}/`));
+}
+
 export function announceViewer() {
   if (shared(VIEWER) !== MOD) setShared(VIEWER, MOD);
 }

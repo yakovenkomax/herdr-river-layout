@@ -5,7 +5,7 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { run, props, closeOverlay, theme, spaces, panes, exec, home, window } from "herdr";
+import { run, props, closeOverlay, theme, spaces, panes, exec, home, window, setShared } from "herdr";
 
 // A space's root: the folder it was made in. Only a space made in the home folder
 // follows its first terminal instead.
@@ -14,6 +14,10 @@ function place(s, all) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return all.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder || null;
 }
+
+// The worktrees being deleted right now. The panels that show a checkout's files keep what
+// they have meanwhile, or the folder being emptied would read as a pile of deleted files.
+const CLOSING = "river.closing";
 
 const QUIET = ["--no-optional-locks", "-c", "core.fsmonitor=false"];
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -169,13 +173,18 @@ export default class Close extends View {
       // The spaces close last, so a task leaves the sidebar when the dialog does. Only
       // Windows needs them gone first: a shell sitting in the folder keeps it busy there.
       const first = window()?.platform === "windows";
-      for (const k of this.tasks) {
-        if (first) run("space.close", { id: k.space.id, confirmed: true });
-        const gone = await git(this.repo.main, ["worktree", "remove", ...(k.risks.force ? ["--force"] : []), k.top], s.machine, 600_000);
-        if (!gone.ok) return gone.err || "git worktree remove failed.";
-        if (!k.branch) continue;
-        const deleted = await git(this.repo.main, ["branch", "-D", k.branch], s.machine);
-        if (!deleted.ok) return deleted.err || "git branch -D failed.";
+      setShared(CLOSING, this.tasks.map((k) => k.top));
+      try {
+        for (const k of this.tasks) {
+          if (first) run("space.close", { id: k.space.id, confirmed: true });
+          const gone = await git(this.repo.main, ["worktree", "remove", ...(k.risks.force ? ["--force"] : []), k.top], s.machine, 600_000);
+          if (!gone.ok) return gone.err || "git worktree remove failed.";
+          if (!k.branch) continue;
+          const deleted = await git(this.repo.main, ["branch", "-D", k.branch], s.machine);
+          if (!deleted.ok) return deleted.err || "git branch -D failed.";
+        }
+      } finally {
+        setShared(CLOSING, []);
       }
       if (!first) for (const k of this.tasks) run("space.close", { id: k.space.id, confirmed: true });
     }
