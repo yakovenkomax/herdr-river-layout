@@ -7,7 +7,7 @@ import { props, settings, theme } from "herdr";
 
 import { fileDiff, fileRows, fileStatus, repoRoot } from "./git.js";
 import { cachedLines, grammarLines } from "./grammar.js";
-import { commentsOf, describeLines, diffMode, findFileTab, publishView, saveComments } from "./store.js";
+import { commentsOf, describeLines, diffMode, findFileTab, isClosing, publishView, saveComments } from "./store.js";
 import { languageOf, tokenize } from "./vendor/highlight.js";
 
 const LINE_HEIGHT = 20;
@@ -147,7 +147,7 @@ export class DiffView {
 
   check(cx) {
     const target = this.target();
-    if (!target) return;
+    if (!target || isClosing(target.root)) return;
 
     if (!this.paneId && !this.isLookingUp && this.paneLookups < 20) {
       this.isLookingUp = true;

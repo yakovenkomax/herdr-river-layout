@@ -7,7 +7,7 @@ import { agents, hc, layout, notify, run, theme } from "herdr";
 
 import { changedFiles, repoRoot } from "./git.js";
 import { warm } from "./grammar.js";
-import { activeSpace, activeView, checkoutOf, commentsOf, openFileTab, saveComments } from "./store.js";
+import { activeSpace, activeView, checkoutOf, commentsOf, isClosing, openFileTab, saveComments } from "./store.js";
 
 const CHECK_MS = 1000;
 const REFRESH_MS = 5000;
@@ -64,7 +64,7 @@ export class Sidebar {
 
   check(cx) {
     const context = this.context();
-    if (!context) return;
+    if (!context || isClosing(context.cwd)) return;
 
     const key = JSON.stringify(context);
     const isNew = key !== this.contextKey;
